@@ -80,13 +80,13 @@ int main(){
         //渲染指令
 
         //绘制普通三角形
-        //        glUseProgram(shaderProgram);
-        //        glBindVertexArray(trianglesInfoVAO);
-        //        glDrawArrays(GL_TRIANGLES,0,6);
-        //绘制四边形
                 glUseProgram(shaderProgram);
-                glBindVertexArray(trianglesCacheInfoVAO);
-                glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_INT,0);
+                glBindVertexArray(trianglesInfoVAO);
+                glDrawArrays(GL_TRIANGLES,0,6);
+        //绘制四边形
+//                glUseProgram(shaderProgram);
+//                glBindVertexArray(trianglesCacheInfoVAO);
+//                glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_INT,0);
         
         //绘制两套顶点三角形
         //        glUseProgram(shaderProgram);
@@ -114,7 +114,7 @@ int main(){
 //    glDeleteVertexArrays(1,&VAO);
 //    glDeleteBuffers(1,&VBO);
 //    glDeleteProgram(shaderProgram);
-    
+    //释放之前分配的资源
     glfwTerminate();
     
     return 0;
@@ -286,18 +286,21 @@ void linkMultiShaderProgram(unsigned int programs[2]){
 }
 
 /**
+ GLSL：着色器语言。在其他语言用 字符串形式设置
+ */
+const char *vertexShaderSource = "#version 330 core\n"
+"layout (location = 0) in vec3 aPos;\n"
+"out vec4 vertexColor;\n"
+"void main()\n"
+"{\n"
+"   gl_Position = vec4(aPos, 1.0);\n"
+"   vertexColor = vec4(0.5,0.0,0.0,1.0);\n"
+"}\0";
+
+/**
  编译顶点着色器
  */
 unsigned int compileVertexShader(){
-    /**
-     GLSL：着色器语言。在其他语言用 字符串形式设置
-     */
-    const char *vertexShaderSource = "#version 330 core\n"
-    "layout (location = 0) in vec3 aPos;\n"
-    "void main()\n"
-    "{\n"
-    "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
-    "}\0";
     
     //顶点着色器
     unsigned int vertexShader;
@@ -330,10 +333,11 @@ unsigned int compileVertexShader(){
  */
 unsigned int compileFragmentShader(){
     const char *fragmentShaderSource = "#version 330 core\n"
+    "in vec4 vertexColor;\n"
     "out vec4 FragColor;\n"
     "void main()\n"
     "{\n"
-    "   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+    "   FragColor = vertexColor;\n"
     "}\n\0";
     
     unsigned int fragmentShader;
@@ -354,13 +358,13 @@ unsigned int compileFragmentShader(){
     return fragmentShader;
 }
 
+const char *fragmentShaderSource = "#version 330 core\n"
+"out vec4 FragColor;\n"
+"void main()\n"
+"{\n"
+"   FragColor = vec4(1.0f, 1.0f, 0.0f, 1.0f);\n"
+"}\n\0";
 unsigned int compileFragmentYellowShader(){
-    const char *fragmentShaderSource = "#version 330 core\n"
-    "out vec4 FragColor;\n"
-    "void main()\n"
-    "{\n"
-    "   FragColor = vec4(1.0f, 1.0f, 0.0f, 1.0f);\n"
-    "}\n\0";
     
     unsigned int fragmentShader;
     fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
