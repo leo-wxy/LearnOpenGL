@@ -69,7 +69,8 @@ set(CHAPTERS
 )
 
 set(TestDemo
-    test)
+    test
+    test_shader)
 
 set(1.getting_started
     1.1.hello_window
