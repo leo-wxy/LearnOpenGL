@@ -12,15 +12,14 @@
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
-unsigned int compileVertexShader();
-unsigned int compileFragmentShader();
-unsigned int compileFragmentYellowShader();
-unsigned int compileUniformFragmentShader();
+unsigned int compileVertexShader(const char* value);
+unsigned int compileFragmentShader(const char* value);
 unsigned int linkShaderProgram();
 unsigned int initTriangles();
-void initTriangles2(unsigned int VAOs[2]);
-void linkMultiShaderProgram(unsigned int programs[2]);
+void initTriangles2(unsigned int VAOs[3]);
+void linkMultiShaderProgram(unsigned int programs[3]);
 unsigned int initCacheTriangles();
+unsigned int getShaderProgram(const char* vertexShaderSource,const char* fragmentShaderSource);
 
 int main(){
     //初始化gl
@@ -52,16 +51,11 @@ int main(){
         return -1;
     }
     
-    unsigned int shaderProgram = linkShaderProgram();
-    //普通三角形
-    unsigned int trianglesInfoVAO = initTriangles();
-    //四边形(通过两个三角组合)
-    unsigned int trianglesCacheInfoVAO = initCacheTriangles();
     //两套顶点 三角形
-    unsigned int trianglesInfoVAOs[2];
+    unsigned int trianglesInfoVAOs[3];
     initTriangles2(trianglesInfoVAOs);
     //不同颜色 三角形
-    unsigned int shaderPrograms[2];
+    unsigned int shaderPrograms[3];
     linkMultiShaderProgram(shaderPrograms);
     
 
@@ -77,25 +71,7 @@ int main(){
         glClearColor(0.2f,0.3f,0.3f,1.0f);
         //使用glClearColor设置的颜色
         glClear(GL_COLOR_BUFFER_BIT);
-        
-        //渲染指令
-
-        //绘制普通三角形
-//                glUseProgram(shaderProgram);
-//                glBindVertexArray(trianglesInfoVAO);
-//                glDrawArrays(GL_TRIANGLES,0,6);
-        //绘制四边形
-//                glUseProgram(shaderProgram);
-//                glBindVertexArray(trianglesCacheInfoVAO);
-//                glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_INT,0);
-        
-        //绘制两套顶点三角形
-        //        glUseProgram(shaderProgram);
-//        glBindVertexArray(trianglesInfoVAOs[0]);
-//        glDrawArrays(GL_TRIANGLES,0,3);
-//        glBindVertexArray(trianglesInfoVAOs[1]);
-//        glDrawArrays(GL_TRIANGLES,0,3);
-        
+    
         //绘制不同颜色三角形
                 glUseProgram(shaderPrograms[0]);
                 glBindVertexArray(trianglesInfoVAOs[0]);
@@ -115,6 +91,10 @@ int main(){
         glBindVertexArray(trianglesInfoVAOs[1]);
         glDrawArrays(GL_TRIANGLES,0,3);
         
+        glUseProgram(shaderPrograms[2]);
+        glBindVertexArray(trianglesInfoVAOs[2]);
+        glDrawArrays(GL_TRIANGLES,0,6);
+        
         //交换颜色缓冲
         glfwSwapBuffers(window);
         //检查是否存在触发事件，例如键盘输入、鼠标移动等
@@ -130,59 +110,10 @@ int main(){
     return 0;
 }
 
-unsigned int initTriangles(){
-    /**
-     常规顶点数组对象设置 VAO
-     储存的是顶点信息
-     */
-    //(0,0)为坐标原点 分为四块区域
-    float vertices[] = {
-        // first triangle
-        -0.9f, -0.5f, 0.0f,  // left
-        -0.0f, -0.5f, 0.0f,  // right
-        -0.45f, 0.5f, 0.0f,  // top
-        // second triangle
-         0.0f, -0.5f, 0.0f,  // left
-         0.9f, -0.5f, 0.0f,  // right
-         0.45f, 0.5f, 0.0f   // top
-    }; 
-    unsigned int VAO,VBO;
-    //生成VAO对象
-    glGenVertexArrays(1,&VAO);
-    glGenBuffers(1,&VBO);
-    
-    //绑定VBO对象在 GL_ARRAY_BUFFER目标上
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER,VBO);
-
-    /**
-     复制用户定义数据到当前绑定缓冲
-     1.缓冲对象绑定到 GL_ARRAY_BUFFER上
-     2.指定传输数据大小
-     3.发送的实际数据
-     4.显卡如何管理数据 GL_STATIC_DRAW 数据几乎不会改变
-     */
-    glBufferData(GL_ARRAY_BUFFER,sizeof(vertices),vertices,GL_STATIC_DRAW);
-    /**
-     解析顶点数据
-     1.配置的顶点属性
-     2.顶点属性的大小
-     3.数据类型
-     4.是否将数据标准化 GL_TRUE 将数据转化为0-1之内 GL_FALSE 不处理
-     5.步长，表示顶点属性组之间的间隔。概念比较复杂，后续单独分析
-     6.表示位置数据在缓冲中起始位置的偏移量
-     */
-    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
-    glEnableVertexAttribArray(0);
-    
-    return VAO;
-    
-}
-
 /**
  根据两组顶点对象 绘制两个三角形
  */
-void initTriangles2(unsigned int VAOs[2]){
+void initTriangles2(unsigned int rVAOs[3]){
     float firstTriangle[] = {
         -0.9f, -0.5f, 0.0f,  // left
         -0.0f, -0.5f, 0.0f,  // right
@@ -193,9 +124,15 @@ void initTriangles2(unsigned int VAOs[2]){
         0.9f, -0.5f, 0.0f,  // right
         0.45f, 0.5f, 0.0f   // top
     };
-    unsigned int VBOs[2];
-    glGenVertexArrays(2, VAOs); // we can also generate multiple VAOs or buffers at the same time
-    glGenBuffers(2, VBOs);
+    float thirdTriangle[] = {
+        // 位置              // 颜色
+         0.5f, -0.5f, 0.0f,  1.0f, 0.0f, 0.0f,   // 右下
+        -0.5f, -0.5f, 0.0f,  0.0f, 1.0f, 0.0f,   // 左下
+         0.0f,  0.5f, 0.0f,  0.0f, 0.0f, 1.0f    // 顶部
+    };
+    unsigned int VBOs[3],VAOs[3];
+    glGenVertexArrays(3, VAOs); // we can also generate multiple VAOs or buffers at the same time
+    glGenBuffers(3, VBOs);
     // first triangle setup
     // --------------------
     glBindVertexArray(VAOs[0]);
@@ -212,68 +149,87 @@ void initTriangles2(unsigned int VAOs[2]){
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0); // because the vertex data is tightly packed we can also specify 0 as the vertex attribute's stride to let OpenGL figure it out
     glEnableVertexAttribArray(0);
     // glBindVertexArray(0); // not really necessary as well, but beware of calls that could affect VAOs while this one is bound (like binding element buffer objects, or enabling/disabling vertex attributes)
-
+    
+    //位置+颜色设置
+    glBindVertexArray(VAOs[2]);
+    glBindBuffer(GL_ARRAY_BUFFER,VBOs[2]);
+    glBufferData(GL_ARRAY_BUFFER,sizeof(thirdTriangle),thirdTriangle,GL_STATIC_DRAW);
+    
+    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,6*sizeof(float),(void*)0);
+    glEnableVertexAttribArray(0);
+    
+    glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,6*sizeof(float),(void*)(3*sizeof(float)));
+    glEnableVertexAttribArray(1);
+    
+    rVAOs[0] = VAOs[0];
+    rVAOs[1] = VAOs[1];
+    rVAOs[2] = VAOs[2];
 }
 
 /**
- 利用缓冲对象 绘制多个三角
+ GLSL：着色器语言。在其他语言用 字符串形式设置
  */
-unsigned int initCacheTriangles(){
-    float vertices[] = {
-        0.0f,0.0f,0.0f,
-        0.0f,0.5f,0.0f,
-        0.5f,0.5f,0.0f,
-        0.5f,0.0f,0.0f
-    };
-    
-    unsigned int indices[] = {
-        0,1,2,
-        2,3,0
-    };
-    
-    unsigned int VAO,VBO;
-    /**
-     索引缓冲对象 EBO
-     储存的是顶点信息的索引，可以有效进行复用，避免产生浪费
-     */
-    unsigned int EBO ;
-    
-    glGenVertexArrays(1,&VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-    
-    glBindVertexArray(VAO);
-    
-    glBindBuffer(GL_ARRAY_BUFFER,VBO);
-    glBufferData(GL_ARRAY_BUFFER,sizeof(vertices),vertices,GL_STATIC_DRAW);
-    
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER,sizeof(indices),indices,GL_STATIC_DRAW);
-    
-    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
-    glEnableVertexAttribArray(0);
-    
-    return VAO;
+const char *vertexShaderSource1 = "#version 330 core\n"
+"layout (location = 0) in vec3 aPos;\n"
+"out vec4 vertexColor;\n"
+"void main()\n"
+"{\n"
+"   gl_Position = vec4(aPos, 1.0);\n"
+"   vertexColor = vec4(0.5,0.0,0.0,1.0);\n"
+"}\0";
+
+const char *fragmentShaderSource1 = "#version 330 core\n"
+"in vec4 vertexColor;\n"
+"out vec4 FragColor;\n"
+"void main()\n"
+"{\n"
+"   FragColor = vertexColor;\n"
+"}\n\0";
+
+const char *fragmentUniformShaderSource1 = "#version 330 core\n"
+"out vec4 FragColor;\n"
+"uniform vec4 ourColor;\n"
+"void main()\n"
+"{\n"
+"   FragColor = ourColor;\n"
+"}\n\0";
+
+
+const char *vertexShaderSource2 ="#version 330 core\n"
+    "layout (location = 0) in vec3 aPos;\n"
+    "layout (location = 1) in vec3 aColor;\n"
+    "out vec4 ourColor;\n"
+    "void main()\n"
+    "{\n"
+    "   gl_Position = vec4(aPos, 1.0);\n"
+    "   ourColor = vec4(aColor, 1.0);\n"
+    "}\0";
+
+
+const char *fragmentShaderSource2 = "#version 330 core\n"
+    "out vec4 FragColor;\n"
+    "in vec4 ourColor;\n"
+    "void main()\n"
+    "{\n"
+    "   FragColor = ourColor;\n"
+    "}\n\0";
+
+
+void linkMultiShaderProgram(unsigned int programs[3]){
+    programs[0] = getShaderProgram(vertexShaderSource1,fragmentShaderSource1);
+    programs[1] = getShaderProgram(vertexShaderSource1,fragmentUniformShaderSource1);
+    programs[2] = getShaderProgram(vertexShaderSource2,fragmentShaderSource2);
 }
 
-void linkMultiShaderProgram(unsigned int programs[2]){
-    unsigned int vertexShader =  compileVertexShader();
-    unsigned int fragmentShader = compileFragmentShader();
-    unsigned int fragmentYellowShader = compileUniformFragmentShader();
+unsigned int getShaderProgram(const char* vertexShaderSource,const char* fragmentShaderSource){
+    unsigned int vertexShader =  compileVertexShader(vertexShaderSource);
+    unsigned int fragmentShader = compileFragmentShader(fragmentShaderSource);
     
-    
-    //创建 着色器程序
     unsigned int shaderProgram = glCreateProgram();
-    unsigned int shaderYellowProgram = glCreateProgram();
     
-    //链接着色器 到 程序上
     glAttachShader(shaderProgram,vertexShader);
     glAttachShader(shaderProgram,fragmentShader);
     glLinkProgram(shaderProgram);
-    
-    glAttachShader(shaderYellowProgram,vertexShader);
-    glAttachShader(shaderYellowProgram,fragmentYellowShader);
-    glLinkProgram(shaderYellowProgram);
     
     int success;
     char infoLog[512];
@@ -285,33 +241,16 @@ void linkMultiShaderProgram(unsigned int programs[2]){
         std::cout << "Error : link failed" << infoLog << std::endl;
     }
     
-    //链接完成后，即可删除着色器对象
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
-    glDeleteShader(fragmentYellowShader);
     
-    programs[0] = shaderProgram;
-    programs[1] = shaderYellowProgram;
-    
+    return shaderProgram;
 }
-
-/**
- GLSL：着色器语言。在其他语言用 字符串形式设置
- */
-const char *vertexShaderSource = "#version 330 core\n"
-"layout (location = 0) in vec3 aPos;\n"
-"out vec4 vertexColor;\n"
-"void main()\n"
-"{\n"
-"   gl_Position = vec4(aPos, 1.0);\n"
-"   vertexColor = vec4(0.5,0.0,0.0,1.0);\n"
-"}\0";
 
 /**
  编译顶点着色器
  */
-unsigned int compileVertexShader(){
-    
+unsigned int compileVertexShader(const char* vertexShaderSource){
     //顶点着色器
     unsigned int vertexShader;
     //创建顶点着色器
@@ -341,15 +280,7 @@ unsigned int compileVertexShader(){
 /**
  编译片段着色器
  */
-unsigned int compileFragmentShader(){
-    const char *fragmentShaderSource = "#version 330 core\n"
-    "in vec4 vertexColor;\n"
-    "out vec4 FragColor;\n"
-    "void main()\n"
-    "{\n"
-    "   FragColor = vertexColor;\n"
-    "}\n\0";
-    
+unsigned int compileFragmentShader(const char* fragmentShaderSource){
     unsigned int fragmentShader;
     fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fragmentShader,1,&fragmentShaderSource,NULL);
@@ -368,91 +299,7 @@ unsigned int compileFragmentShader(){
     return fragmentShader;
 }
 
-const char *fragmentShaderSource = "#version 330 core\n"
-"out vec4 FragColor;\n"
-"void main()\n"
-"{\n"
-"   FragColor = vec4(1.0f, 1.0f, 0.0f, 1.0f);\n"
-"}\n\0";
-unsigned int compileFragmentYellowShader(){
-    
-    unsigned int fragmentShader;
-    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader,1,&fragmentShaderSource,NULL);
-    glCompileShader(fragmentShader);
-    
-    int success;
-    char infoLog[512];
-    
-    glGetShaderiv(fragmentShader,GL_COMPILE_STATUS,&success);
-    
-    if(!success){
-        glGetShaderInfoLog(fragmentShader,512,NULL,infoLog);
-        std::cout << "Error : compile fragment failed" << infoLog << std::endl;
-    }
-    
-    return fragmentShader;
-}
 
-const char *fragmentUniformShaderSource = "#version 330 core\n"
-"out vec4 FragColor;\n"
-"uniform vec4 ourColor;\n"
-"void main()\n"
-"{\n"
-"   FragColor = ourColor;\n"
-"}\n\0";
-unsigned int compileUniformFragmentShader(){
-    unsigned int fragmentShader;
-    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader,1,&fragmentUniformShaderSource,NULL);
-    glCompileShader(fragmentShader);
-    
-    int success;
-    char infoLog[512];
-    
-    glGetShaderiv(fragmentShader,GL_COMPILE_STATUS,&success);
-    
-    if(!success){
-        glGetShaderInfoLog(fragmentShader,512,NULL,infoLog);
-        std::cout << "Error : compile fragment failed" << infoLog << std::endl;
-    }
-    
-    return fragmentShader;
-}
-
-/**
- 链接着色器程序(ShaderProgram)
- */
-unsigned int linkShaderProgram(){
-    
-    unsigned int vertexShader =  compileVertexShader();
-    unsigned int fragmentShader = compileFragmentShader();
-    
-    //创建 着色器程序
-    unsigned int shaderProgram = glCreateProgram();
-    
-    //链接着色器 到 程序上
-    glAttachShader(shaderProgram,vertexShader);
-    glAttachShader(shaderProgram,fragmentShader);
-    
-    glLinkProgram(shaderProgram);
-    
-    int success;
-    char infoLog[512];
-    
-    glGetProgramiv(shaderProgram,GL_LINK_STATUS,&success);
-    
-    if(!success){
-        glGetProgramInfoLog(shaderProgram,512,NULL,infoLog);
-        std::cout << "Error : link failed" << infoLog << std::endl;
-    }
-    
-    //链接完成后，即可删除着色器对象
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-    
-    return shaderProgram;
-}
 
 void processInput(GLFWwindow* window){
     //判断当前点击按钮是否为 esc
