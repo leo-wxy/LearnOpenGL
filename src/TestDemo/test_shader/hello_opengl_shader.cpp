@@ -10,6 +10,8 @@
 
 #include <iostream>
 
+#include <learnopengl/shader_learn.h>
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
 unsigned int compileVertexShader(const char* value);
@@ -74,8 +76,13 @@ int main(){
     
         //绘制不同颜色三角形
                 glUseProgram(shaderPrograms[0]);
-                glBindVertexArray(trianglesInfoVAOs[0]);
-                glDrawArrays(GL_TRIANGLES,0,3);
+        
+        float offsetValue = glfwGetTime();
+        float offset = (sin(offsetValue)/2.0f)+0.5f;
+        int offsetLocation = glGetUniformLocation(shaderPrograms[0],"offset");
+        glUniform1f(offsetLocation,offset);
+        glBindVertexArray(trianglesInfoVAOs[0]);
+        glDrawArrays(GL_TRIANGLES,0,3);
         
         glUseProgram(shaderPrograms[1]);
         glBindVertexArray(trianglesInfoVAOs[1]);
@@ -174,7 +181,7 @@ const char *vertexShaderSource1 = "#version 330 core\n"
 "out vec4 vertexColor;\n"
 "void main()\n"
 "{\n"
-"   gl_Position = vec4(aPos, 1.0);\n"
+"   gl_Position = vec4(aPos.x ,aPos.y , aPos.z, 1.0);\n"
 "   vertexColor = vec4(0.5,0.0,0.0,1.0);\n"
 "}\0";
 
@@ -214,92 +221,27 @@ const char *fragmentShaderSource2 = "#version 330 core\n"
     "   FragColor = ourColor;\n"
     "}\n\0";
 
+const char *vertexShaderSource3 = "#version 330 core\n"
+"layout (location = 0) in vec3 aPos;\n"
+"uniform float offset;\n"
+"out vec4 vertexColor;\n"
+"void main()\n"
+"{\n"
+"   gl_Position = vec4(aPos.x + offset ,aPos.y , aPos.z, 1.0);\n"
+"   vertexColor = vec4(0.5,0.0,0.0,1.0);\n"
+"}\0";
 
 void linkMultiShaderProgram(unsigned int programs[3]){
-    programs[0] = getShaderProgram(vertexShaderSource1,fragmentShaderSource1);
-    programs[1] = getShaderProgram(vertexShaderSource1,fragmentUniformShaderSource1);
-    programs[2] = getShaderProgram(vertexShaderSource2,fragmentShaderSource2);
+    Shader outShader = Shader("3.3.shader.vs", "3.3.shader.fs");
+    Shader outShader1 = Shader(1,vertexShaderSource1,fragmentShaderSource1);
+    Shader outShader2 = Shader(1,vertexShaderSource2,fragmentShaderSource2);
+    Shader outShader3 = Shader(1,vertexShaderSource3,fragmentShaderSource1);
+    Shader outShader4 =Shader(1,vertexShaderSource1,fragmentUniformShaderSource1);
+    
+    programs[0] = outShader3.getShaderProgram();
+    programs[1] = outShader.getShaderProgram();
+    programs[2] = outShader2.getShaderProgram();
 }
-
-unsigned int getShaderProgram(const char* vertexShaderSource,const char* fragmentShaderSource){
-    unsigned int vertexShader =  compileVertexShader(vertexShaderSource);
-    unsigned int fragmentShader = compileFragmentShader(fragmentShaderSource);
-    
-    unsigned int shaderProgram = glCreateProgram();
-    
-    glAttachShader(shaderProgram,vertexShader);
-    glAttachShader(shaderProgram,fragmentShader);
-    glLinkProgram(shaderProgram);
-    
-    int success;
-    char infoLog[512];
-    
-    glGetProgramiv(shaderProgram,GL_LINK_STATUS,&success);
-    
-    if(!success){
-        glGetProgramInfoLog(shaderProgram,512,NULL,infoLog);
-        std::cout << "Error : link failed" << infoLog << std::endl;
-    }
-    
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-    
-    return shaderProgram;
-}
-
-/**
- 编译顶点着色器
- */
-unsigned int compileVertexShader(const char* vertexShaderSource){
-    //顶点着色器
-    unsigned int vertexShader;
-    //创建顶点着色器
-    vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    
-    /**
-     编译着色器
-     1.需要编译的着色器对象
-     2.传递的源码字符串数量
-     3.顶点着色器的真正源码
-     */
-    glShaderSource(vertexShader,1,&vertexShaderSource,NULL);
-    glCompileShader(vertexShader);
-    
-    int success;
-    char infoLog[512];
-    
-    glGetShaderiv(vertexShader,GL_COMPILE_STATUS,&success);
-    
-    if(!success){
-        glGetShaderInfoLog(vertexShader,512,NULL,infoLog);
-        std::cout << "Error : compile vertex failed" << infoLog << std::endl;
-    }
-    return vertexShader;
-}
-
-/**
- 编译片段着色器
- */
-unsigned int compileFragmentShader(const char* fragmentShaderSource){
-    unsigned int fragmentShader;
-    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader,1,&fragmentShaderSource,NULL);
-    glCompileShader(fragmentShader);
-    
-    int success;
-    char infoLog[512];
-    
-    glGetShaderiv(fragmentShader,GL_COMPILE_STATUS,&success);
-    
-    if(!success){
-        glGetShaderInfoLog(fragmentShader,512,NULL,infoLog);
-        std::cout << "Error : compile fragment failed" << infoLog << std::endl;
-    }
-    
-    return fragmentShader;
-}
-
-
 
 void processInput(GLFWwindow* window){
     //判断当前点击按钮是否为 esc
