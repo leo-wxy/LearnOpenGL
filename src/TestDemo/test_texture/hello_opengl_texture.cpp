@@ -11,6 +11,7 @@
 
 #include <iostream>
 
+#include <learnopengl/filesystem.h>
 #include <learnopengl/shader_learn.h>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -23,6 +24,8 @@ void initTriangles2(unsigned int VAOs[3]);
 void linkMultiShaderProgram(unsigned int programs[3]);
 unsigned int initCacheTriangles();
 unsigned int getShaderProgram(const char* vertexShaderSource,const char* fragmentShaderSource);
+unsigned int initRectangle();
+unsigned int genTexture(const char* picPath);
 
 int main(){
     //初始化gl
@@ -57,6 +60,13 @@ int main(){
     //两套顶点 三角形
     unsigned int trianglesInfoVAOs[3];
     initTriangles2(trianglesInfoVAOs);
+    
+    unsigned int rectangleVAO;
+    rectangleVAO =  initRectangle();
+    trianglesInfoVAOs[2] = rectangleVAO;
+    
+    unsigned int texture = genTexture(FileSystem::getPath("resources/textures/container.jpg").c_str());
+    
     //不同颜色 三角形
     unsigned int shaderPrograms[3];
     linkMultiShaderProgram(shaderPrograms);
@@ -85,10 +95,12 @@ int main(){
         glDrawArrays(GL_TRIANGLES,0,3);
         
         glUseProgram(shaderPrograms[2]);
+        //绑定纹理效果
+        glBindTexture(GL_TEXTURE_2D, texture);
         glBindVertexArray(trianglesInfoVAOs[2]);
-        glDrawArrays(GL_TRIANGLES,0,3);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+//        glDrawArrays(GL_TRIANGLES,0,3);
     
-        
         //交换颜色缓冲
         glfwSwapBuffers(window);
         //检查是否存在触发事件，例如键盘输入、鼠标移动等
@@ -160,6 +172,46 @@ void initTriangles2(unsigned int rVAOs[3]){
     rVAOs[2] = VAOs[2];
 }
 
+unsigned int initRectangle(){
+    float vertices[] = {
+    //     ---- 位置 ----       ---- 颜色 ----     - 纹理坐标 -
+         0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // 右上
+         0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f,   // 右下
+        -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,   // 左下
+        -0.5f,  0.5f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f    // 左上
+    };
+    
+    unsigned int indices[] = {
+        0, 1, 3, // first triangle
+        1, 2, 3  // second triangle
+    };
+    
+    unsigned int VAO,VBO;
+    unsigned int EBO ;
+    glGenVertexArrays(1,&VAO);
+    glGenBuffers(1,&VBO);
+    
+    glGenBuffers(1, &EBO);
+    
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER,VBO);
+    glBufferData(GL_ARRAY_BUFFER,sizeof(vertices),vertices,GL_STATIC_DRAW);
+    
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,sizeof(indices),indices,GL_STATIC_DRAW);
+    
+    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,8*sizeof(float),(void*)0);
+    glEnableVertexAttribArray(0);
+    
+    glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,8*sizeof(float),(void*)(3*sizeof(float)));
+    glEnableVertexAttribArray(1);
+    
+    glVertexAttribPointer(2,2,GL_FLOAT,GL_FALSE,8*sizeof(float),(void*)(6*sizeof(float)));
+    glEnableVertexAttribArray(2);
+    return VAO;
+
+}
+
 /**
  GLSL：着色器语言。在其他语言用 字符串形式设置
  */
@@ -180,22 +232,18 @@ const char *fragmentShaderSource1 = "#version 330 core\n"
 "   FragColor = vertexColor;\n"
 "}\n\0";
 
+
 void linkMultiShaderProgram(unsigned int programs[3]){
     
     Shader outShader1 = Shader(1,vertexShaderSource1,fragmentShaderSource1);
-
+    Shader outShader2 = Shader("4.1.texture.vs", "4.1.texture.fs");
     
     programs[0] = outShader1.getShaderProgram();
     programs[1] = outShader1.getShaderProgram();
-    programs[2] = outShader1.getShaderProgram();
+    programs[2] = outShader2.getShaderProgram();
 }
 
-void genTexture(const char* picPath){
-    /**
-     加载图片
-     */
-    int width,height,nrChannels;
-    unsigned char *data = stbi_load(picPath, width, height, nrChannels, 0);
+unsigned int genTexture(const char* picPath){
     
     /**
      生成纹理
@@ -203,13 +251,77 @@ void genTexture(const char* picPath){
     unsigned int texture;
     glGenTextures(1,&texture);
     
+    /**
+     绑定纹理
+     */
     glBindTexture(GL_TEXTURE_2D,texture);
-    glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,width,height,0,GL_RGB,GL_UNSIGNED_BYTE,data);
-    glGenerateMipmap(GL_TEXTURE_2D);
+    
+    /**
+     设置纹理相关属性
+     */
+    /**
+     设置纹理环绕方式
+     1.活动纹理单元的目标纹理
+     2.纹理的坐标系统 ST坐标等价于XY坐标系统 s->x t->y
+     3.超出范围的纹理处理方式
+      - GL_CLAMP_TO_EDGE 边缘拉伸
+      - GL_REPEAT 重复
+      - GL_MIRRORED_REPEAT 镜像重复
+      - GL_CLAMP_TO_BORDER 边缘设置为指定颜色
+     */
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_MIRRORED_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_MIRRORED_REPEAT);
+    
+    // 设置边缘指定颜色
+    // float borderColor[] = {1.0f,1.0f,0.0f,1.0f};
+    // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_BORDER,borderColor);
+    
+    /**
+     设置纹理过滤方式
+     1.活动纹理单元的目标纹理
+     2.纹理大小与渲染屏幕大小不一致时
+      - GL_TEXTURE_MIN_FILTER 纹理大于渲染屏幕 一部分像素无法映射到屏幕
+      - GL_TEXTURE_MAX_FILTER 纹理小于渲染屏幕 没有足够像素映射到屏幕
+     3.纹理过滤选项
+      - GL_NEAREST 临近过滤 选择中心最接近纹理坐标的那个像素 (放大效果)
+        - GL_NEAREST_MIPMAP_NEAREST
+        - GL_NEAREST_MIPMAP_LINEAR
+      - GL_LINEAR 线性过滤 基于纹理坐标附近像素，计算出一个插值(速度较慢)
+        - GL_LINEAR_MIPMAP_NEAREST
+        - GL_LINEAR_MIPMAP_LINEAR
+     */
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
     
 
+    /**
+     加载图片
+     */
+    int width,height,nrChannels;
+    unsigned char *data = stbi_load(picPath, &width, &height, &nrChannels, 0);
+    if(data){
+        /**
+         生成纹理
+         1.绑定纹理模板
+         2.多级渐远纹理级别 0基本级别
+         3.纹理储存格式
+         4 5.纹理宽度、高度
+         6.一直为0
+         7 8.源图格式和数据类型
+         9.真正图像数据
+         */
+        glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,width,height,0,GL_RGB,GL_UNSIGNED_BYTE,data);
+        /**
+         自动生成所需的多级渐远纹理
+         */
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }else{
+        std::cout << "Failed to load texture" << std::endl;
+    }
+    
     //释放图片内存
     stbi_image_free(data);
+    return texture;
 }
 
 void processInput(GLFWwindow* window){
